@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Solutions Finder - A Piece of Map</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #fffced;
+        }
+        .main-color {
+            color: #285a84;
+        }
+        .accent-color {
+            color: #85c872;
+        }
+        .bg-main {
+            background-color: #285a84;
+        }
+        .bg-accent {
+            background-color: #85c872;
+        }
+        .border-main {
+            border-color: #285a84;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-8">
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script type="text/babel">
+        const { useState } = React;
+
+        // ========================================
+        // CONFIGURATION - UPDATE THIS SECTION
+        // ========================================
+        const CONFIG = {
+            // TODO: Replace with your actual backend API endpoint
+            API_ENDPOINT: 'https://map-solutions-api-ranltu7hoq-du.a.run.app/api/recommend',
+            
+            // TODO: If your API requires authentication, add the key here
+            API_KEY: '',
+            
+            // Set to true to use demo mode (no backend call)
+            DEMO_MODE: false,
+            
+            // Demo delay in milliseconds
+            DEMO_DELAY: 1500
+        };
+        // ========================================
+
+        // Lucide Icons as inline SVG components
+        const Building2 = () => (
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/>
+                <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/>
+                <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/>
+                <path d="M10 6h4"/>
+                <path d="M10 10h4"/>
+                <path d="M10 14h4"/>
+                <path d="M10 18h4"/>
+            </svg>
+        );
+
+        const MapPin = () => (
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+                <circle cx="12" cy="10" r="3"/>
+            </svg>
+        );
+
+        const Code = () => (
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+            </svg>
+        );
+
+        const TrendingUp = () => (
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                <polyline points="16 7 22 7 22 13"/>
+            </svg>
+        );
+
+        const Globe = () => (
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+        );
+
+        const Loader2 = () => (
+            <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+        );
+
+        const AlertCircle = () => (
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+        );
+
+        // Helper function to process backend response
+        function processBackendResponse(data) {
+            const providerColors = {
+                'Google Maps': 'bg-blue-500',
+                'Mapbox': 'bg-purple-500',
+                'HERE Technologies': 'bg-green-500'
+            };
+
+            // Handle various possible backend response formats
+            const assessment = data.assessment || data.evaluation || {};
+            const recommendation = data.recommendation || data.recommendations || {};
+
+            return {
+                assessment: {
+                    volumeLevel: assessment.volume_level || assessment.volumeLevel || 'N/A',
+                    monthlyJourneys: (assessment.monthly_journeys || assessment.monthlyJourneys || 0).toLocaleString(),
+                    estimatedUsers: (assessment.estimated_users || assessment.estimatedUsers || 0).toLocaleString(),
+                    regionLevel: assessment.region_level || assessment.regionLevel || 'N/A',
+                    useCase: assessment.use_case || assessment.useCase || 'N/A'
+                },
+                recommendation: {
+                    primary: {
+                        name: recommendation.primary?.name || recommendation.recommended_provider || 'Unknown',
+                        score: recommendation.primary?.score || recommendation.confidence_score || 0,
+                        color: providerColors[recommendation.primary?.name] || 'bg-gray-500',
+                        reasons: recommendation.primary?.reasons || recommendation.reasoning || []
+                    },
+                    others: (recommendation.others || recommendation.alternatives || []).map(provider => ({
+                        name: provider.name,
+                        score: provider.score,
+                        color: providerColors[provider.name] || 'bg-gray-500'
+                    }))
+                }
+            };
+        }
+
+        // Demo data generator
+        function getDemoData() {
+            return {
+                assessment: {
+                    volumeLevel: 'Medium',
+                    monthlyJourneys: '50,000',
+                    estimatedUsers: '10,000',
+                    regionLevel: 'Regional',
+                    useCase: 'Route Optimization'
+                },
+                recommendation: {
+                    primary: {
+                        name: 'HERE Technologies',
+                        score: 0.95,
+                        color: 'bg-green-500',
+                        reasons: [
+                            'Excellent for logistics and delivery use cases',
+                            'Advanced routing capabilities with traffic data',
+                            'Cost-effective pricing for medium volume operations'
+                        ]
+                    },
+                    others: [
+                        { name: 'Google Maps', score: 0.85, color: 'bg-blue-500' },
+                        { name: 'Mapbox', score: 0.80, color: 'bg-purple-500' }
+                    ]
+                }
+            };
+        }
+
+        function MapSolutionsFinder() {
+            const [formData, setFormData] = useState({
+                useCase: '',
+                mapFeatures: '',
+                productParts: '',
+                monthlyRequests: '',
+                targetRegion: ''
+            });
+            const [loading, setLoading] = useState(false);
+            const [result, setResult] = useState(null);
+            const [error, setError] = useState(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError(null);
+                
+                // Prepare request payload matching backend schema
+                const requestPayload = {
+                    use_case: formData.mapFeatures,  // Map features description
+                    service_regions_countries: formData.targetRegion,  // Target region
+                    monthly_api_requests: parseInt(formData.monthlyRequests) || 0,  // Convert to number
+                    target_industry: formData.useCase,  // Use case/industry
+                    application: formData.productParts  // Product parts requiring maps
+                };
+
+                // Demo mode - skip API call
+                if (CONFIG.DEMO_MODE) {
+                    console.log('🎭 DEMO MODE - Request payload:', requestPayload);
+                    setTimeout(() => {
+                        setResult(getDemoData());
+                        setLoading(false);
+                    }, CONFIG.DEMO_DELAY);
+                    return;
+                }
+
+                // Real API call
+                try {
+                    console.log('📤 Sending request to:', CONFIG.API_ENDPOINT);
+                    console.log('📦 Payload:', requestPayload);
+
+                    const headers = {
+                        'Content-Type': 'application/json',
+                    };
+
+                    // Add API key if configured
+                    if (CONFIG.API_KEY) {
+                        headers['Authorization'] = `Bearer ${CONFIG.API_KEY}`;
+                    }
+
+                    const response = await fetch(CONFIG.API_ENDPOINT, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(requestPayload)
+                    });
+
+                    console.log('📥 Response status:', response.status);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`API request failed (${response.status}): ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('✅ Response data:', data);
+                    
+                    // Process backend response
+                    const processedResult = processBackendResponse(data);
+                    setResult(processedResult);
+                    
+                } catch (err) {
+                    console.error('❌ Error calling backend API:', err);
+                    setError(err.message);
+                    
+                    // Show demo data as fallback
+                    setResult(getDemoData());
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleInputChange = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+
+            return (
+                <div className="max-w-7xl mx-auto">
+                    {/* Configuration Warning */}
+                    {CONFIG.DEMO_MODE && (
+                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                            <div className="flex">
+                                <AlertCircle />
+                                <div className="ml-3">
+                                    <p className="text-sm text-yellow-700">
+                                        <strong>Demo Mode Active:</strong> Update the CONFIG section in the HTML file to connect to your backend API.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Error Alert */}
+                    {error && (
+                        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+                            <div className="flex">
+                                <AlertCircle />
+                                <div className="ml-3">
+                                    <p className="text-sm text-red-700">
+                                        <strong>API Error:</strong> {error}
+                                    </p>
+                                    <p className="text-xs text-red-600 mt-1">Showing demo results as fallback. Check console for details.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Header */}
+                    <div className="text-center mb-12">
+                        <div className="flex items-center justify-center gap-3 mb-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center">
+                                <MapPin />
+                            </div>
+                            <h1 className="text-4xl font-bold main-color">Map Solutions Finder</h1>
+                        </div>
+                        <p className="text-xl main-color">
+                            Discover your ideal map solutions with <span className="font-bold accent-color">A Piece of Map</span>
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Left Panel - Form */}
+                        <div className="bg-white rounded-lg shadow-lg p-8">
+                            <h2 className="text-2xl font-bold main-color mb-6">
+                                What would you like to make with maps?
+                            </h2>
+
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                {/* Field 1 */}
+                                <div>
+                                    <label className="flex items-center gap-2 text-sm font-medium main-color mb-2">
+                                        <Building2 />
+                                        Choose your use case or target industry.
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.useCase}
+                                        onChange={(e) => handleInputChange('useCase', e.target.value)}
+                                        placeholder="e.g. Ride-hailing, Taxi service, Logistics & Delivery, Real-estate, etc."
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Field 2 */}
+                                <div>
+                                    <label className="flex items-center gap-2 text-sm font-medium main-color mb-2">
+                                        <MapPin />
+                                        Describe map features you need
+                                    </label>
+                                    <textarea
+                                        value={formData.mapFeatures}
+                                        onChange={(e) => handleInputChange('mapFeatures', e.target.value)}
+                                        placeholder="e.g. Multi-stop route optimization, Real-time routing and ETA calculation, Store locator, etc."
+                                        rows="3"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Field 3 */}
+                                <div>
+                                    <label className="flex items-center gap-2 text-sm font-medium main-color mb-2">
+                                        <Code />
+                                        Which parts of your product (service) requires map solutions?
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.productParts}
+                                        onChange={(e) => handleInputChange('productParts', e.target.value)}
+                                        placeholder="e.g. Backend Operations, End-user or Driver App, Web Dashboard, others."
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Field 4 */}
+                                <div>
+                                    <label className="flex items-center gap-2 text-sm font-medium main-color mb-2">
+                                        <TrendingUp />
+                                        What are your expected number of monthly user, journey, or API requests?
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={formData.monthlyRequests}
+                                        onChange={(e) => handleInputChange('monthlyRequests', e.target.value)}
+                                        placeholder="Number of Monthly API Requests (or Journeys or Users) after 6 months from launch."
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Field 5 */}
+                                <div>
+                                    <label className="flex items-center gap-2 text-sm font-medium main-color mb-2">
+                                        <Globe />
+                                        Which country or region will you target?
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.targetRegion}
+                                        onChange={(e) => handleInputChange('targetRegion', e.target.value)}
+                                        placeholder="e.g. USA, Europe, Thailand, Southeast Asia, Singapore..."
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Submit Button */}
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-main text-white py-3 px-6 rounded-lg font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 transition-opacity"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <Loader2 />
+                                            Analyzing your requirements...
+                                        </>
+                                    ) : (
+                                        'Get Your Personalized Recommendations'
+                                    )}
+                                </button>
+                            </form>
+                        </div>
+
+                        {/* Right Panel - Results */}
+                        <div className="bg-white rounded-lg shadow-lg p-8">
+                            {!result ? (
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="text-center">
+                                        <MapPin />
+                                        <p className="text-gray-500 mt-4">
+                                            Fill out the form to discover your ideal map solution
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* Assessment Section */}
+                                    <div>
+                                        <h3 className="text-xl font-bold main-color mb-4">Your Business Assessment</h3>
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between py-2 border-b border-gray-100">
+                                                <span className="text-gray-600">Volume Level:</span>
+                                                <span className="font-medium main-color">{result.assessment.volumeLevel}</span>
+                                            </div>
+                                            <div className="flex justify-between py-2 border-b border-gray-100">
+                                                <span className="text-gray-600">Monthly Journeys:</span>
+                                                <span className="font-medium main-color">{result.assessment.monthlyJourneys}</span>
+                                            </div>
+                                            <div className="flex justify-between py-2 border-b border-gray-100">
+                                                <span className="text-gray-600">Estimated Users:</span>
+                                                <span className="font-medium main-color">{result.assessment.estimatedUsers}</span>
+                                            </div>
+                                            <div className="flex justify-between py-2 border-b border-gray-100">
+                                                <span className="text-gray-600">Region Level:</span>
+                                                <span className="font-medium main-color">{result.assessment.regionLevel}</span>
+                                            </div>
+                                            <div className="flex justify-between py-2">
+                                                <span className="text-gray-600">Use Case:</span>
+                                                <span className="font-medium main-color">{result.assessment.useCase}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Recommendation Section */}
+                                    <div>
+                                        <h3 className="text-xl font-bold main-color mb-4">Recommended Map Provider</h3>
+                                        
+                                        {/* Primary Recommendation */}
+                                        <div className={`${result.recommendation.primary.color} text-white rounded-lg p-6 mb-4`}>
+                                            <div className="flex justify-between items-start mb-4">
+                                                <h4 className="text-2xl font-bold">{result.recommendation.primary.name}</h4>
+                                                <span className="text-xl font-bold bg-white bg-opacity-20 px-3 py-1 rounded">
+                                                    {Math.round(result.recommendation.primary.score * 100)}%
+                                                </span>
+                                            </div>
+                                            <ul className="space-y-2">
+                                                {result.recommendation.primary.reasons.map((reason, idx) => (
+                                                    <li key={idx} className="flex items-start gap-2">
+                                                        <span className="mt-1">✓</span>
+                                                        <span>{reason}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+
+                                        {/* Other Providers */}
+                                        {result.recommendation.others.length > 0 && (
+                                            <div>
+                                                <h4 className="text-sm font-medium main-color mb-3">Other Providers</h4>
+                                                <div className="space-y-2">
+                                                    {result.recommendation.others.map((provider, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                                                            <span className="font-medium main-color">{provider.name}</span>
+                                                            <span className="text-sm text-gray-600">{Math.round(provider.score * 100)}%</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="text-center mt-12 text-sm text-gray-500">
+                        <p>© 2024 A Piece of Map Inc. All rights reserved.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<MapSolutionsFinder />, document.getElementById('root'));
+    </script>
+</body>
+</html>
